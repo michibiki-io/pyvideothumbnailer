@@ -680,7 +680,10 @@ class VideoThumbnailer:
         if self.parameters.output_directory is None:
             image_path = Path('{}{}.jpg'.format(file_path, self.parameters.suffix))
         else:
-            image_path = self.parameters.output_directory / '{}{}.jpg'.format(file_path.name, self.parameters.suffix)
+            relative_path = file_path.parent.relative_to(Path.cwd())
+            image_path = self.parameters.output_directory / relative_path / '{}{}.jpg'.format(file_path.name, self.parameters.suffix)
+            if not image_path.parent.exists():
+                image_path.parent.mkdir(parents=True, exist_ok=True)
 
         if image_path.exists():
             if not self.parameters.override_existing:
