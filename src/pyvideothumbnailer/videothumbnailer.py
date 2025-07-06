@@ -765,13 +765,17 @@ class VideoThumbnailer:
             video_height = temp
         # Aspect ratio
         video_aspect = float(video_width) / float(video_height)
-        # Frames per second
-        fps = float(video_metadata['frame_rate'])
+        # Frames per second (might be unavailable)
+        fps = float(video_metadata.get('frame_rate', 0.0))
         # Duration in seconds
-        try:
-            duration = float(video_metadata['duration']) / 1000.0
-        except KeyError:
+        if 'duration' in video_metadata:
+            duration_ms = video_metadata['duration']
+        elif 'duration' in general_metadata:
+            duration_ms = general_metadata['duration']
+        else:
             raise VideoThumbnailerException('Video stream in \'{}\' has no duration set in metadata. Cannot calculate preview timestamps.'.format(file_path))
+
+        duration = float(duration_ms) / 1000.0
 
         # The number of preview thumbnail columns and rows
         columns = self.parameters.columns
@@ -790,7 +794,9 @@ class VideoThumbnailer:
             return
         # The time step for iterating over the clip and capturing thumbnails
         time_step = (duration - self.parameters.skip_seconds) / number_thumbnails
-        if time_step < 1.0 / fps:
+        if fps == 0.0:
+            print('Fps unavailable: Thumbnails might contain duplicates')
+        elif time_step < 1.0 / fps:
             print('Video clip is too short to generate {} distinct preview thumbnails'.format(number_thumbnails), file=sys.stderr)
             return
 
