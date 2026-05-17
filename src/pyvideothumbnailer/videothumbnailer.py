@@ -40,7 +40,7 @@ from PIL import ImageFont
 
 __author__ = 'Harald Hetzner'
 __license__ = 'BSD 3-Clause License'
-__version__ = '2.0.4'
+__version__ = '2.1.0'
 
 class Parameters:
     """
@@ -67,6 +67,17 @@ class Parameters:
     DEFAULT_COMMENT_LABEL = 'Comment:'
     DEFAULT_COMMENT_TEXT = None
     DEFAULT_SKIP_SECONDS = 10.0
+    DEFAULT_VIDEO_FILE_EXTENSIONS = {'.avi',
+                                     '.divx',
+                                     '.flv',
+                                     '.m4v',
+                                     '.mkv',
+                                     '.mov',
+                                     '.mp4',
+                                     '.mpg',
+                                     '.wmv',
+                                     '.mts',
+                                     '.webm'}
     DEFAULT_SUFFIX = None
     DEFAULT_JPEG_QUALITY = 95
     DEFAULT_OVERRIDE_EXISTING = False
@@ -79,8 +90,8 @@ class Parameters:
                  background_color: str, no_header: bool, header_font_name: str, header_font_size: int, header_font_color: str,
                  timestamp_font_name: str, timestamp_font_size: int, timestamp_font_color: str, timestamp_shadow_color: str,
                  comment_label: str, comment_text: str,
-                 skip_seconds: float, suffix: str, jpeg_quality: int, override_existing: bool, output_directory: Path,
-                 raise_errors: bool, verbose: bool):
+                 skip_seconds: float, video_file_extensions: set, suffix: str, jpeg_quality: int,
+                 override_existing: bool, output_directory: Path, raise_errors: bool, verbose: bool):
         """
         Constructor for an instance of the object holding all of the parameters of Python Video Thumbnailer.
 
@@ -117,6 +128,7 @@ class Parameters:
         comment_text (str): An optional user-defined comment added added at the bottom of the video metadata information.
                             If not defined, no comment is added and the respective text line is omitted in the header.
         skip_seconds (float): The number of seconds to skip at the beginning of the video before capturing the first preview thumbnail.
+        video_file_extensions (set): The file extensions recognized as video file extensions.
         suffix (str): An optional suffix to append to the file name of the generated preview thumbnails images.
         jpeg_quality (int): The quality of the JPEG image file that is created.
         override_existing (bool): If True, override image files that exist by the same name as the created image files.
@@ -147,6 +159,7 @@ class Parameters:
         self.comment_label = comment_label
         self.comment_text = comment_text
         self.skip_seconds = skip_seconds
+        self.video_file_extensions = video_file_extensions
         self.suffix = suffix
         self.jpeg_quality = jpeg_quality
         self.override_existing = override_existing
@@ -165,29 +178,30 @@ class Parameters:
         return Parameters(Parameters.DEFAULT_PATH,
                           Parameters.DEFAULT_RECURSIVE,
                           Parameters.DEFAULT_WIDTH,
-                                          Parameters.DEFAULT_COLUMNS,
-                                          Parameters.DEFAULT_ROWS,
-                                          Parameters.DEFAULT_VERTICAL_VIDEO_COLUMNS,
-                                          Parameters.DEFAULT_VERTICAL_VIDEO_ROWS,
-                                          Parameters.DEFAULT_SPACING,
-                                          Parameters.DEFAULT_BACKGROUND_COLOR,
-                                          Parameters.DEFAULT_NO_HEADER,
-                                          Parameters.DEFAULT_HEADER_FONT_NAME,
-                                          Parameters.DEFAULT_HEADER_FONT_SIZE,
-                                          Parameters.DEFAULT_HEADER_FONT_COLOR,
-                                          Parameters.DEFAULT_TIMESTAMP_FONT_NAME,
-                                          Parameters.DEFAULT_TIMESTAMP_FONT_SIZE,
-                                          Parameters.DEFAULT_TIMESTAMP_FONT_COLOR,
-                                          Parameters.DEFAULT_TIMESTAMP_SHADOW_COLOR,
-                                          Parameters.DEFAULT_COMMENT_LABEL,
-                                          Parameters.DEFAULT_COMMENT_TEXT,
-                                          Parameters.DEFAULT_SKIP_SECONDS,
-                                          Parameters.DEFAULT_SUFFIX,
-                                          Parameters.DEFAULT_JPEG_QUALITY,
-                                          Parameters.DEFAULT_OVERRIDE_EXISTING,
-                                          Parameters.DEFAULT_OUTPUT_DIRECTORY,
-                                          Parameters.DEFAULT_RAISE_ERRORS,
-                                          Parameters.DEFAULT_VERBOSE)
+                          Parameters.DEFAULT_COLUMNS,
+                          Parameters.DEFAULT_ROWS,
+                          Parameters.DEFAULT_VERTICAL_VIDEO_COLUMNS,
+                          Parameters.DEFAULT_VERTICAL_VIDEO_ROWS,
+                          Parameters.DEFAULT_SPACING,
+                          Parameters.DEFAULT_BACKGROUND_COLOR,
+                          Parameters.DEFAULT_NO_HEADER,
+                          Parameters.DEFAULT_HEADER_FONT_NAME,
+                          Parameters.DEFAULT_HEADER_FONT_SIZE,
+                          Parameters.DEFAULT_HEADER_FONT_COLOR,
+                          Parameters.DEFAULT_TIMESTAMP_FONT_NAME,
+                          Parameters.DEFAULT_TIMESTAMP_FONT_SIZE,
+                          Parameters.DEFAULT_TIMESTAMP_FONT_COLOR,
+                          Parameters.DEFAULT_TIMESTAMP_SHADOW_COLOR,
+                          Parameters.DEFAULT_COMMENT_LABEL,
+                          Parameters.DEFAULT_COMMENT_TEXT,
+                          Parameters.DEFAULT_SKIP_SECONDS,
+                          Parameters.DEFAULT_VIDEO_FILE_EXTENSIONS,
+                          Parameters.DEFAULT_SUFFIX,
+                          Parameters.DEFAULT_JPEG_QUALITY,
+                          Parameters.DEFAULT_OVERRIDE_EXISTING,
+                          Parameters.DEFAULT_OUTPUT_DIRECTORY,
+                          Parameters.DEFAULT_RAISE_ERRORS,
+                          Parameters.DEFAULT_VERBOSE)
 
 class ConfigFile:
     """
@@ -303,20 +317,6 @@ class VideoThumbnailer:
     Python Video Thumbnailer.
     """
 
-    """
-    The video file extensions that Python Video Thumbnailer recognized by default.
-    """
-    DEFAULT_VIDEO_EXTENSIONS = ('.avi',
-                                '.divx',
-                                '.flv',
-                                '.m4v',
-                                '.mkv',
-                                '.mov',
-                                '.mp4',
-                                '.mpg',
-                                '.wmv',
-                                '.mts')
-
     def __init__(self):
         """
         Creates a new instance of Python Video Thumbnailer.
@@ -344,8 +344,6 @@ class VideoThumbnailer:
             elif not os.access(self.parameters.output_directory, os.W_OK):
                 message = 'Missing permission to write the output directory: \'{}\''.format(self.parameters.output_directory.absolute())
                 raise VideoThumbnailerException(message)
-
-        self.__video_extensions = VideoThumbnailer.DEFAULT_VIDEO_EXTENSIONS
 
         # Font for the header texts
         self.__header_font = None
@@ -436,6 +434,12 @@ class VideoThumbnailer:
         parser.add_argument('--skip-seconds',
                              type=float,
                              help='The number of seconds to skip at the beginning of the video before capturing the first preview thumbnail.')
+        parser.add_argument('--video-file-extensions',
+                             type=str,
+                             help="""A Python-style tuple or list of file extensions recognized as video file extensions to be provided as a string, e.g. "('mkv','mp4')".
+                                     File extensions have to be put into single quotes and to be separated by commas. Each file extension has to be prepended with a dot.
+                                     This parameter can be used to specify video file extensions not recognized by default or to suppress video files with specific
+                                     file extensions being considered by Python Video Thumbnailer.""")
         parser.add_argument('--suffix',
                              type=str,
                              help='An optional suffix to append to the file name of the generated preview thumbnails images.')
@@ -543,6 +547,11 @@ class VideoThumbnailer:
                 file_options = config.options(ConfigFile.CONFIG_SECTION_FILE)
                 if 'recursive' in file_options:
                     self.parameters.recursive = config.getboolean(ConfigFile.CONFIG_SECTION_FILE, 'recursive')
+                if 'video_file_extensions' in file_options:
+                    video_file_extensions = config.get(ConfigFile.CONFIG_SECTION_FILE, 'video_file_extensions')
+                    video_file_extensions = eval(video_file_extensions)
+                    if type(video_file_extensions) is tuple or type(video_file_extensions) is list:
+                        self.set_video_file_extensions(video_file_extensions)
                 if 'suffix' in file_options:
                     self.parameters.suffix = config.get(ConfigFile.CONFIG_SECTION_FILE, 'suffix')
                 if 'jpeg_quality' in file_options:
@@ -603,6 +612,10 @@ class VideoThumbnailer:
             self.parameters.comment_text = args.comment_text
         if args.skip_seconds is not None:
             self.parameters.skip_seconds = args.skip_seconds
+        if args.video_file_extensions is not None:
+            video_file_extensions = eval(args.video_file_extensions)
+            if type(video_file_extensions) is tuple or type(video_file_extensions) is list:
+                self.set_video_file_extensions(video_file_extensions)
         if args.suffix is not None:
             self.parameters.suffix = args.suffix
         if args.jpeg_quality is not None:
@@ -616,7 +629,7 @@ class VideoThumbnailer:
         if args.verbose is not Parameters.DEFAULT_VERBOSE:
             self.parameters.verbose = args.verbose
 
-    def add_video_extension(self, extension: str) -> None:
+    def add_video_file_extension(self, extension: str) -> None:
         """
         Adds a file extension to the list of video file extensions recognized by this
         Python Video Thumbnailer instance. Case of the extension does not matter as
@@ -630,22 +643,20 @@ class VideoThumbnailer:
         if type(extension) != str:
             return
         extension = extension.lower()
-        if not extension.startswidth('.'):
+        if not extension.startswith('.'):
             extension = '.' + extension
-        video_extensions = set(self.__video_extensions)
-        video_extensions.add(extension)
-        self.__video_extensions = tuple(video_extensions)
+        self.parameters.video_file_extensions.add(extension)
 
-    def get_video_extensions(self) -> tuple:
+    def get_video_file_extensions(self) -> tuple:
         """
         Returns the video file extensions recognized by this Python Video Thumbnailer instance.
 
         Returns:
-        tuple: The list of recognized file extensions.
+        tuple: The recognized video file extensions.
         """
-        return self.__video_extensions
+        return tuple(sorted(self.parameters.video_file_extensions))
 
-    def set_video_extensions(self, extensions: list):
+    def set_video_file_extensions(self, extensions: tuple):
         """
         Sets the list of video file extensions recognized by this Python Video Thumbnailer instance.
         Case of the extension does not matter as Python Video Thumbnailer recognizes file extensions
@@ -653,17 +664,11 @@ class VideoThumbnailer:
         prepended. This method ensures that extensions are not added twice.
 
         Parameters:
-        extension (list): The list of recognized video file extension to set.
+        extension (tuple): The tuple or list of recognized video file extension to set.
         """
-        video_extensions = set()
+        self.parameters.video_file_extensions = set()
         for extension in extensions:
-            if type(extension) != str:
-                continue
-            extension = extension.lower()
-            if not extension.startswidth('.'):
-                extension = '.' + extension
-            video_extensions.add(extension)
-        self.__video_extensions = tuple(video_extensions)
+            self.add_video_file_extension(extension)
 
     def create_and_save_preview_thumbnails_for(self, file_path: Path) -> None:
         """
@@ -755,15 +760,30 @@ class VideoThumbnailer:
         video_width = int(video_metadata['width'])
         # Height in px
         video_height = int(video_metadata['height'])
+        # Rotation in °
+        video_rotation = 0
+        if 'rotation' in video_metadata.keys():
+            video_rotation = int(float(video_metadata['rotation']))
+            if self.parameters.verbose:
+                print('Video images are rotated by {}° according to metadata.'.format(video_rotation))
+        # Swap width and height if the video is rotated by 90° or 270°
+        if video_rotation in (90, 270):
+            temp = video_width
+            video_width = video_height
+            video_height = temp
         # Aspect ratio
         video_aspect = float(video_width) / float(video_height)
-        # Frames per second
-        fps = float(video_metadata['frame_rate'])
+        # Frames per second (might be unavailable)
+        fps = float(video_metadata.get('frame_rate', 0.0))
         # Duration in seconds
-        try:
-            duration = float(video_metadata['duration']) / 1000.0
-        except KeyError:
+        if 'duration' in video_metadata:
+            duration_ms = video_metadata['duration']
+        elif 'duration' in general_metadata:
+            duration_ms = general_metadata['duration']
+        else:
             raise VideoThumbnailerException('Video stream in \'{}\' has no duration set in metadata. Cannot calculate preview timestamps.'.format(file_path))
+
+        duration = float(duration_ms) / 1000.0
 
         # The number of preview thumbnail columns and rows
         columns = self.parameters.columns
@@ -782,7 +802,9 @@ class VideoThumbnailer:
             return
         # The time step for iterating over the clip and capturing thumbnails
         time_step = (duration - self.parameters.skip_seconds) / number_thumbnails
-        if time_step < 1.0 / fps:
+        if fps == 0.0:
+            print('Fps unavailable: Thumbnails might contain duplicates')
+        elif time_step < 1.0 / fps:
             print('Video clip is too short to generate {} distinct preview thumbnails'.format(number_thumbnails), file=sys.stderr)
             return
 
@@ -962,7 +984,11 @@ class VideoThumbnailer:
                         # pts = presentation timestamp in time_base units
                         if frame.pts >= target_timestamp:
                             # VideoFrame.to_image() returns a PIL image
-                            image = frame.to_image().resize((thumbnail_width, thumbnail_height))
+                            image = frame.to_image()
+                            # Counterrotate the image if the video is rotated by multiples of 90° according to metadata
+                            if video_rotation in (90, 180, 270):
+                                image = image.rotate(-video_rotation, expand=True)
+                            image = image.resize((thumbnail_width, thumbnail_height))
                             thumbnails_image.paste(image, box=(x, y))
                             frame_captured = True
                             break
@@ -992,7 +1018,7 @@ class VideoThumbnailer:
         container.close()
         return thumbnails_image
 
-    def has_recognized_video_extension(self, file_name: str) -> bool:
+    def has_recognized_video_file_extension(self, file_name: str) -> bool:
         """
         Checks if a file name ends with a recognized video file extension.
 
@@ -1005,7 +1031,7 @@ class VideoThumbnailer:
         Returns:
         bool: True if the file name ends with one of the recognized video extensions, False otherwise.
         """
-        return file_name.lower().endswith(self.__video_extensions)
+        return file_name.lower().endswith(self.get_video_file_extensions())
 
     def process_file_or_directory(self, path: Path) -> None:
         """
@@ -1054,7 +1080,7 @@ class VideoThumbnailer:
             if self.parameters.recursive and path.is_dir():
                 self.process_file_or_directory(path)
             # Create preview thumbnails of (potential) video files
-            elif path.is_file() and self.has_recognized_video_extension(path.name):
+            elif path.is_file() and self.has_recognized_video_file_extension(path.name):
                 try:
                     self.create_and_save_preview_thumbnails_for(path)
                 except Exception as e:
@@ -1068,6 +1094,8 @@ class VideoThumbnailer:
         Starts creating preview thumbnails of the specified file, in the specified directory or
         in the current directory.
         """
+        if self.parameters.verbose:
+            print('Recognizing video files by the following file extensions: {}'.format(self.get_video_file_extensions()))
         self.process_file_or_directory(self.parameters.path)
 
 def main():
